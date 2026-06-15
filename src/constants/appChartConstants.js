@@ -50,6 +50,7 @@ export const MAX_PROVINCE_SELECTION = 5;
 export const MAX_INDICATOR_SELECTION = 5;
 
 // [HIDDEN] Tombol 1Y, 5Y, 8Y disembunyikan sementara dari UI.
+// Jangan hapus kode ini agar mudah diaktifkan kembali di masa depan.
 // export const rangeButtons = [
 //   { label: "1Y", value: "1Y" },
 //   { label: "5Y", value: "5Y" },

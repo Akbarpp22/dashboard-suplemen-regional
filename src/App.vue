@@ -449,6 +449,7 @@ const onToggleRegionMerge = async () => {
 // menggunakan state yang SAMA dengan time-series panels.
 // =========================================================
 
+// Helper: dapatkan satu nilai snapshot dari series (titik terakhir).
 const lastValidValue = (arr) => {
   if (!Array.isArray(arr)) return null;
   for (let i = arr.length - 1; i >= 0; i--) {
@@ -487,19 +488,27 @@ const getRegionValueForDataset = (dataset, provinceCode, measure, aggregation, m
 // Warna berbeda tiap indikator / komponen
 const REGION_COLORS = [
   { line: "#3b82f6", fill: "rgba(59,130,246,0.72)" },
-  { line: "#10b981", fill: "rgba(16,185,129,0.72)" },
+  { line: "#ec4899", fill: "rgba(236,72,153,0.72)" },
   { line: "#f59e0b", fill: "rgba(245,158,11,0.72)" },
   { line: "#ef4444", fill: "rgba(239,68,68,0.72)" },
   { line: "#8b5cf6", fill: "rgba(139,92,246,0.72)" },
   { line: "#06b6d4", fill: "rgba(6,182,212,0.72)" },
 ];
 
-const buildRegionChartDatasets = (indicators, measure, aggregation, method, displayUnit, chartType, stackGroup, forceColorIdx = null) => {
+// Warna hijau independen khusus grafik kanan (tidak bergantung pada REGION_COLORS)
+const RIGHT_PANEL_COLOR = { line: "#10b981", fill: "rgba(16,185,129,0.72)" };
+
+const buildRegionChartDatasets = (indicators, measure, aggregation, method, displayUnit, chartType, stackGroup, forceColorIdx = null, forceColor = null) => {
   const codes = regionAxisCodes.value;
   const isBar = chartType === "bar";
   return indicators.map((ds, idx) => {
-    const colorIdx = forceColorIdx !== null ? forceColorIdx : idx;
-    const color = REGION_COLORS[colorIdx % REGION_COLORS.length];
+    let color;
+    if (forceColor !== null) {
+      color = forceColor;
+    } else {
+      const colorIdx = forceColorIdx !== null ? forceColorIdx : idx;
+      color = REGION_COLORS[colorIdx % REGION_COLORS.length];
+    }
     const label = ds.valueUnitLabel
       ? `${ds.indicatorName ?? ds.deskripsi ?? ds.kode} (${ds.valueUnitLabel ?? ds.satuan})`
       : (ds.indicatorName ?? ds.deskripsi ?? ds.kode ?? "");
@@ -548,7 +557,7 @@ const regionLeftChartData = computed(() => {
 });
 
 // Grafik KANAN — komponen terpilih (activeStaticDataset), filter = right panel
-// Selalu menggunakan warna HIJAU (color index 1) agar mudah dibedakan dari grafik kiri
+// Selalu menggunakan warna HIJAU independen agar mudah dibedakan dari grafik kiri
 const regionRightChartData = computed(() => {
   const ds = activeStaticDataset.value;
   if (!ds) return { labels: regionAxisLabels.value, datasets: [] };
@@ -560,7 +569,8 @@ const regionRightChartData = computed(() => {
     effectiveStaticDisplayUnit.value || "",
     staticChartType.value,
     null,
-    1 // force green color index
+    null,
+    RIGHT_PANEL_COLOR // warna hijau independen untuk grafik kanan
   );
   return { labels: regionAxisLabels.value, datasets };
 });
@@ -597,7 +607,8 @@ const regionMergedChartData = computed(() => {
         effectiveStaticDisplayUnit.value || "",
         rightChartType,
         rightUseStack ? "comp" : null,
-        1 // force green color index untuk grafik kanan
+        null,
+        RIGHT_PANEL_COLOR // warna hijau independen untuk grafik kanan
       )
     : [];
   return { labels: regionAxisLabels.value, datasets: [...leftDs, ...rightDs] };
@@ -846,12 +857,17 @@ const getRegionValueForDatasetAtPeriod = (dataset, provinceCode, measure, aggreg
   return baseVal === null || !isFinite(baseVal) ? null : Number(baseVal.toFixed(4));
 };
 
-const buildRegionChartDatasetsFiltered = (indicators, measure, aggregation, method, displayUnit, chartType, stackGroup, selectedPeriod, allPeriods, forceColorIdx = null) => {
+const buildRegionChartDatasetsFiltered = (indicators, measure, aggregation, method, displayUnit, chartType, stackGroup, selectedPeriod, allPeriods, forceColorIdx = null, forceColor = null) => {
   const codes = regionAxisCodes.value;
   const isBar = chartType === "bar";
   return indicators.map((ds, idx) => {
-    const colorIdx = forceColorIdx !== null ? forceColorIdx : idx;
-    const color = REGION_COLORS[colorIdx % REGION_COLORS.length];
+    let color;
+    if (forceColor !== null) {
+      color = forceColor;
+    } else {
+      const colorIdx = forceColorIdx !== null ? forceColorIdx : idx;
+      color = REGION_COLORS[colorIdx % REGION_COLORS.length];
+    }
     const label = ds.valueUnitLabel
       ? `${ds.indicatorName ?? ds.deskripsi ?? ds.kode} (${ds.valueUnitLabel ?? ds.satuan})`
       : (ds.indicatorName ?? ds.deskripsi ?? ds.kode ?? "");
@@ -911,7 +927,8 @@ const regionRightChartDataFiltered = computed(() => {
     null,
     rightSelectedPeriod.value,
     periods,
-    1 // force green color index
+    null,
+    RIGHT_PANEL_COLOR // warna hijau independen untuk grafik kanan
   );
   return { labels: regionAxisLabels.value, datasets };
 });
@@ -951,7 +968,8 @@ const regionMergedChartDataFiltered = computed(() => {
     rightUseStack ? "comp" : null,
     rightSelectedPeriod.value,
     rightPeriods,
-    1 // force green color index untuk grafik kanan
+    null,
+    RIGHT_PANEL_COLOR 
   ) : [];
   return { labels: regionAxisLabels.value, datasets: [...leftDs, ...rightDs] };
 });
@@ -2261,7 +2279,10 @@ watch(staticMeasure, async () => {
   });
 });
 
-
+// Mode wilayah: saat provinsi berganti, muat ulang data sesuai wilayah.
+// Setiap provinsi memiliki nilai indikator sendiri (berbeda antar provinsi),
+// dengan struktur data yang tetap kompatibel dengan seluruh fitur (chart,
+// merge, tabel) sehingga tidak menyebabkan crash atau chart rusak.
 watch(selectedProvince, async (val, oldVal) => {
   if (val === oldVal) return;
   if (!staticComponent.value) return;
